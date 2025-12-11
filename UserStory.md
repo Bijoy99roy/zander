@@ -24,7 +24,7 @@ Most fact checking today jappens behind closed doors, with users having to trust
 
 **Name:** Aditi
 
-**Role:** Everyday NEws Consumer
+**Role:** Everyday News Consumer
 
 **Goal:** Quickly and confidently understand if a news is real or misleading
 
@@ -68,7 +68,7 @@ Feeling confident about the result she leaves the app with clarity, Knowing she 
 
 **1.User Persona**
 
-**Name:** jack
+**Name:** Jack
 
 **Role:** Independent Reporter
 
@@ -76,7 +76,7 @@ Feeling confident about the result she leaves the app with clarity, Knowing she 
 
 **2. User Story**
 
-As an independent repoter, I want to publish news on-chain so that my provably authentic and publicly verifiable/
+As an independent repoter, I want to publish news on-chain so that my provably authentic and publicly verifiable
 
 **3. User Journey**
 
@@ -94,6 +94,7 @@ A success message appears:
 "News Successfully Published"
 
 Jack can now track verifier activity:
+
 Votes coming in, stake distribution, consensus movement and dispute phase status.
 
 As verification progresses, he gains credibility through transparent on-chain evidence.
@@ -166,7 +167,7 @@ Her wallet pops up for a simple signature confirming here vote.
 
 Maya opens her profile page where she sees:
 
-- Verrification Power
+- Verification Power
 - Rewards earned for accurate votes
 - Slashing penalty history(If she ever voted incorrectly)
 - Reputation Points
@@ -175,7 +176,7 @@ Later when the news item reaches consensus, she receives a notification:
 "You voted correctly. Reward distibuted, +0.8 SOL".
 
 Her VPT remains intact unless she voted incorrectly.
-Her Stake and reputation grows overtime, allowing her to strengthen her influence by staking more SOL.\
+Her Stake and reputation grows overtime, allowing her to strengthen her influence by staking more SOL.
 
 **4. Acceptance Criteria**
 
