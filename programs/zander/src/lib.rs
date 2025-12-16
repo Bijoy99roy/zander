@@ -3,6 +3,8 @@ pub mod state;
 pub use state::*;
 pub mod instructions;
 pub use instructions::*;
+pub mod error;
+pub use error::*;
 
 declare_id!("77thxrK3p7t7SBr1Wk3VyvhMbDu94UDfnqVFHXWZAdh6");
 
@@ -15,7 +17,12 @@ pub mod zander {
         ctx.accounts.post(ipfs_url, headline, bump)?;
         Ok(())
     }
-}
 
-#[derive(Accounts)]
-pub struct Initialize {}
+    pub fn become_verifier(ctx: Context<BecomeVerifier>, stake_lamports: u64) -> Result<()> {
+        let bump = ctx.bumps.verifier;
+        let vault_bump = ctx.bumps.stake_vault;
+        ctx.accounts
+            .become_verifier(stake_lamports, bump, vault_bump)?;
+        Ok(())
+    }
+}

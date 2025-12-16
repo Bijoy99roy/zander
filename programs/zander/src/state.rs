@@ -1,6 +1,6 @@
 use anchor_lang::{prelude::*, solana_program::native_token::LAMPORTS_PER_SOL};
 
-pub const STAKE_SOL: u64 = 5 * LAMPORTS_PER_SOL;
+pub const MIN_STAKE_SOL: u64 = 5 * LAMPORTS_PER_SOL;
 
 pub const FEES_NUMERATOR: u64 = 500;
 pub const FEES_DENOMINATOR: u64 = 10000;
@@ -40,4 +40,15 @@ pub struct VoteRecord {
     pub verifier: Pubkey,
     pub vote: Votes,
     pub voting_power: u128,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct Verifier {
+    pub verifier: Pubkey,
+    pub reputation: u64,
+    pub stake_lamports: u64,
+    pub voting_power: u64,
+    pub bump: u8,
+    pub vault_bump: u8,
 }
