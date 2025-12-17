@@ -25,6 +25,7 @@ impl<'info> PostNews<'info> {
         let news = &mut self.news;
         let clock = Clock::get()?;
         news.created_at = clock.unix_timestamp;
+        news.publisher = self.publisher.key();
         news.vote_true = 0;
         news.vote_false = 0;
         news.finalized = false;

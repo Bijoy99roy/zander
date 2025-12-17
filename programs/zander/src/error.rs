@@ -10,4 +10,6 @@ pub enum ErrorCode {
     PhaseStillActive,
     #[msg("Already finalized")]
     AlreadyFinalized,
+    #[msg("Not a verifier")]
+    NotVerifier,
 }
