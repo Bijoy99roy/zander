@@ -29,7 +29,7 @@ pub struct News {
     pub finalized: bool,
     pub bump: u8,
     pub phase: NewsPhase,
-    pub winner: Option<VoteRecord>,
+    pub winner: Option<Votes>,
     #[max_len(200)]
     pub headline: String,
     #[max_len(300)]
@@ -52,4 +52,10 @@ pub struct Verifier {
     pub stake_lamports: u64,
     pub bump: u8,
     pub vault_bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct Treasury {
+    pub bump: u8,
 }

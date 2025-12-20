@@ -1,6 +1,10 @@
 pub mod become_verifier;
+pub mod finalize_votes;
+pub mod initialize_treasury;
 pub mod post_news;
 pub mod vote_news;
 pub use become_verifier::*;
+pub use finalize_votes::*;
+pub use initialize_treasury::*;
 pub use post_news::*;
 pub use vote_news::*;
