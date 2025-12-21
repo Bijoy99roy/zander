@@ -25,4 +25,10 @@ pub mod zander {
             .become_verifier(stake_lamports, bump, vault_bump)?;
         Ok(())
     }
+
+    pub fn finalize_news(ctx: Context<FinalizeNews>) -> Result<()> {
+        let remaining_accounts = ctx.remaining_accounts.iter();
+        ctx.accounts.finalize(remaining_accounts)?;
+        Ok(())
+    }
 }

@@ -6,6 +6,8 @@ pub const TOKENS_PER_SOL: u64 = 10;
 pub const FEES_NUMERATOR: u64 = 500;
 pub const FEES_DENOMINATOR: u64 = 10000;
 
+pub const SUPERMAJORITY: u64 = 66;
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace)]
 pub enum Votes {
     True,
