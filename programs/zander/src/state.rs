@@ -4,9 +4,15 @@ pub const MIN_STAKE_SOL: u64 = 5 * LAMPORTS_PER_SOL;
 pub const TOKENS_PER_SOL: u64 = 10;
 
 pub const FEES_NUMERATOR: u64 = 500;
-pub const FEES_DENOMINATOR: u64 = 10000;
+pub const BASIS_POINT: u64 = 10000;
 
 pub const SUPERMAJORITY: u64 = 66;
+
+pub const MIN_VOTES_REQUIRED: u64 = 20;
+
+pub const BASE_SLASH_RATE_BP: u64 = 200;
+
+pub const GAP_MULTIPLIER: u64 = 4;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace)]
 pub enum Votes {

@@ -12,4 +12,12 @@ pub enum ErrorCode {
     AlreadyFinalized,
     #[msg("Not a verifier")]
     NotVerifier,
+    #[msg("Not enough votes")]
+    NotEnoughVotes,
+    #[msg("Verifier is missing from accounts")]
+    MissingVerifier,
+    #[msg("Mathematical overflow during operation")]
+    MathOverflow,
+    #[msg("Verifier vault is missing from accounts")]
+    VaultNotFound,
 }
