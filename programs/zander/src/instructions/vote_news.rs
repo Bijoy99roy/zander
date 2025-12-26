@@ -41,7 +41,7 @@ impl<'info> CastVote<'info> {
     pub fn vote(&mut self, vote: Votes) -> Result<()> {
         let verifier = &self.verifier;
         require!(
-            verifier.stake_lamports / LAMPORTS_PER_SOL >= MIN_STAKE_SOL,
+            verifier.stake_lamports >= MIN_STAKE_SOL,
             ErrorCode::NotVerifier
         );
 
