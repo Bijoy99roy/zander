@@ -12,6 +12,11 @@ declare_id!("77thxrK3p7t7SBr1Wk3VyvhMbDu94UDfnqVFHXWZAdh6");
 pub mod zander {
     use super::*;
 
+    pub fn initialize_treasury(ctx: Context<InitTreasury>) -> Result<()> {
+        ctx.accounts.init(ctx.bumps.treasury)?;
+        Ok(())
+    }
+
     pub fn post_news(ctx: Context<PostNews>, ipfs_url: String, headline: String) -> Result<()> {
         let bump = ctx.bumps.news;
         ctx.accounts.post(ipfs_url, headline, bump)?;
@@ -23,6 +28,11 @@ pub mod zander {
         let vault_bump = ctx.bumps.stake_vault;
         ctx.accounts
             .become_verifier(stake_lamports, bump, vault_bump)?;
+        Ok(())
+    }
+
+    pub fn vote_news(ctx: Context<CastVote>, vote: Votes) -> Result<()> {
+        ctx.accounts.vote(vote)?;
         Ok(())
     }
 

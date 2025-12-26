@@ -218,6 +218,8 @@ fn slash_and_reward<'info>(
             .ok_or(ErrorCode::VaultNotFound)?;
 
         **vault.try_borrow_mut_lamports()? += reward;
+
+        // TODO: reputation logic
     }
     Ok(())
 }
