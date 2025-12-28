@@ -11,6 +11,8 @@ use anchor_lang::AccountDeserialize;
 #[derive(Accounts)]
 pub struct FinalizeNews<'info> {
     #[account(mut)]
+    pub admin: Signer<'info>,
+    #[account(mut)]
     pub news: Account<'info, News>,
 
     #[account(
@@ -24,32 +26,36 @@ pub struct FinalizeNews<'info> {
 }
 
 impl<'info> FinalizeNews<'info> {
-    pub fn finalize(
-        &mut self,
-        remaining_accounts: std::slice::Iter<'_, AccountInfo<'_>>,
-    ) -> Result<()> {
+    pub fn finalize<'c>(&mut self, remaining_accounts: &'c [AccountInfo<'info>]) -> Result<()> {
         let news = &mut self.news;
         require!(!news.finalized, ErrorCode::AlreadyFinalized);
         let mut total_voting_power = 0;
         let mut true_power = 0;
         let mut false_power = 0;
+        let mut total_votes: u64 = 0;
 
-        let remaing_account_iter = remaining_accounts.clone();
+        let remaing_account_iter = remaining_accounts;
 
-        for acc in remaing_account_iter {
-            let mut data: &[u8] = &acc.try_borrow_data()?;
+        for acc in remaing_account_iter.chunks_exact(3) {
+            let mut data: &[u8] = &acc[0].try_borrow_data()?;
             let votes: VoteRecord = VoteRecord::try_deserialize(&mut data)?;
             total_voting_power += votes.voting_power;
             match votes.vote {
-                Votes::True => true_power += votes.voting_power,
-                Votes::False => false_power += votes.voting_power,
+                Votes::True => {
+                    true_power += votes.voting_power;
+                    total_votes += 1;
+                }
+                Votes::False => {
+                    false_power += votes.voting_power;
+                    total_votes += 1;
+                }
             }
         }
 
         let total_vp = true_power + false_power;
 
         // Check total vote count satisfies minimum required vote
-        require!(total_vp >= MIN_VOTES_REQUIRED, ErrorCode::NotEnoughVotes);
+        require!(total_votes >= MIN_VOTES_REQUIRED, ErrorCode::NotEnoughVotes);
 
         let perct = true_power.max(false_power) * 100 / total_vp;
         let final_result = if true_power > false_power {
@@ -91,7 +97,7 @@ impl<'info> FinalizeNews<'info> {
 
 fn slash_and_reward<'info>(
     treasury: &Account<'info, Treasury>,
-    mut remaining_accounts: std::slice::Iter<'_, AccountInfo<'_>>,
+    remaining_accounts: &[AccountInfo<'info>],
     winner: Votes,
     gap: u64,
     system_program: &Program<'info, System>,
@@ -100,12 +106,12 @@ fn slash_and_reward<'info>(
     let mut total_slashed: u64 = 0;
     // Calculate total winning voting power
 
-    for acc in remaining_accounts.clone() {
-        if acc.owner != &crate::ID {
+    for acc in remaining_accounts.chunks_exact(3) {
+        if acc[0].owner != &crate::ID {
             continue;
         }
 
-        let mut data: &[u8] = &acc.try_borrow_data()?;
+        let mut data: &[u8] = &acc[0].try_borrow_data()?;
         let votes: VoteRecord = VoteRecord::try_deserialize(&mut data)?;
 
         if votes.vote == winner {
@@ -114,23 +120,23 @@ fn slash_and_reward<'info>(
     }
 
     // Slash incorrect voters stakes and reputation
-    for acc in remaining_accounts.clone() {
-        if acc.owner != &crate::ID {
+    for acc in remaining_accounts.chunks_exact(3) {
+        if acc[0].owner != &crate::ID {
             continue;
         }
 
-        let mut data: &[u8] = &acc.try_borrow_data()?;
+        let mut data: &[u8] = &acc[0].try_borrow_data()?;
         let votes: VoteRecord = VoteRecord::try_deserialize(&mut data)?;
 
         if votes.vote == winner {
             continue;
         }
 
-        let verifier_data = remaining_accounts
-            .find(|v| v.key() == votes.verifier)
-            .ok_or(ErrorCode::MissingVerifier)?;
+        // let verifier_data = remaining_accounts
+        //     .find(|v| v.key() == votes.verifier)
+        //     .ok_or(ErrorCode::MissingVerifier)?;
 
-        let mut data: &[u8] = &verifier_data.try_borrow_data()?;
+        let mut data: &[u8] = &acc[2].try_borrow_data()?;
         let mut verifier: Verifier = Verifier::try_deserialize(&mut data)?;
 
         // slash_rate = BASE × (1 + 4*gap)
@@ -158,9 +164,11 @@ fn slash_and_reward<'info>(
             &system_program.key(),
         );
 
-        let vault = remaining_accounts
-            .find(|a| a.key == &expected_vault)
-            .ok_or(ErrorCode::VaultNotFound)?;
+        // let vault = remaining_accounts
+        //     .find(|a| a.key == &expected_vault)
+        //     .ok_or(ErrorCode::VaultNotFound)?;
+
+        let vault = &acc[1];
 
         **vault.try_borrow_mut_lamports()? -= slash_amount;
 
@@ -179,23 +187,23 @@ fn slash_and_reward<'info>(
         .ok_or(ErrorCode::MathOverflow)?;
 
     // reward correct voters stakes and reputation
-    for acc in remaining_accounts.clone() {
-        if acc.owner != &crate::ID {
+    for acc in remaining_accounts.chunks_exact(3) {
+        if acc[0].owner != &crate::ID {
             continue;
         }
 
-        let mut data: &[u8] = &acc.try_borrow_data()?;
+        let mut data: &[u8] = &acc[0].try_borrow_data()?;
         let votes: VoteRecord = VoteRecord::try_deserialize(&mut data)?;
 
         if votes.vote != winner {
             continue;
         }
 
-        let verifier_data = remaining_accounts
-            .find(|v| v.key() == votes.verifier)
-            .ok_or(ErrorCode::MissingVerifier)?;
+        // let verifier_data = remaining_accounts
+        //     .find(|v| v.key() == votes.verifier)
+        //     .ok_or(ErrorCode::MissingVerifier)?;
 
-        let mut data: &[u8] = &verifier_data.try_borrow_data()?;
+        let mut data: &[u8] = &acc[2].try_borrow_data()?;
         let mut verifier: Verifier = Verifier::try_deserialize(&mut data)?;
 
         let reward = reward_pool
@@ -213,9 +221,11 @@ fn slash_and_reward<'info>(
             &system_program.key(),
         );
 
-        let vault = remaining_accounts
-            .find(|a| a.key == &expected_vault)
-            .ok_or(ErrorCode::VaultNotFound)?;
+        // let vault = remaining_accounts
+        //     .find(|a| a.key == &expected_vault)
+        //     .ok_or(ErrorCode::VaultNotFound)?;
+
+        let vault = &acc[1];
 
         **vault.try_borrow_mut_lamports()? += reward;
 

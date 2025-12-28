@@ -8,7 +8,7 @@ pub const BASIS_POINT: u64 = 10000;
 
 pub const SUPERMAJORITY: u64 = 66;
 
-pub const MIN_VOTES_REQUIRED: u64 = 20;
+pub const MIN_VOTES_REQUIRED: u64 = 2;
 
 pub const BASE_SLASH_RATE_BP: u64 = 200;
 
@@ -48,6 +48,7 @@ pub struct News {
 #[derive(InitSpace)]
 pub struct VoteRecord {
     pub verifier: Pubkey,
+    pub news: Pubkey,
     pub vote: Votes,
     pub voting_power: u64,
 }
