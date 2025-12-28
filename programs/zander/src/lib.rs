@@ -36,9 +36,10 @@ pub mod zander {
         Ok(())
     }
 
-    pub fn finalize_news(ctx: Context<FinalizeNews>) -> Result<()> {
-        let remaining_accounts = ctx.remaining_accounts.iter();
-        ctx.accounts.finalize(remaining_accounts)?;
+    pub fn finalize_news<'info>(
+        ctx: Context<'_, '_, '_, 'info, FinalizeNews<'info>>,
+    ) -> Result<()> {
+        ctx.accounts.finalize(ctx.remaining_accounts)?;
         Ok(())
     }
 }
