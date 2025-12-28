@@ -190,4 +190,59 @@ describe("zander", () => {
 
     console.log(verifier1VoteRecordAccount)
   });
+
+  it("finalize votes", async ()=>{
+    const remainingAccounts=[]
+    const {pda: treasury} = await getPda([Buffer.from("treasury")])
+    const ipfsUrl = "ipfs://kjsdhfweurlbskvjelsuif"
+    const headline = "A robbery has happened in citybank by some flying donuts"
+    let hexString = crypto.createHash('sha256').update(ipfsUrl, 'utf-8').digest('hex');
+    let content_seed = Uint8Array.from(Buffer.from(hexString, 'hex'));
+    const {pda: news} = await getPda([Buffer.from("news"), publisher.publicKey.toBuffer(), content_seed]);
+    const voteRecords = await program.account.voteRecord.all([
+              {
+                memcmp: {
+                  offset: 8 + 32, // discriminator
+                  bytes: news.toBase58(),
+                },
+              },
+            ]);
+
+    for (const vr of voteRecords) {
+      const voter = vr.account.verifier;
+      console.log(voter)
+      const {pda: stakeVault} = await getPda([Buffer.from("stake_vault"), voter.toBuffer()]);
+      const {pda: verifierPda} = await getPda([Buffer.from("verifier"), voter.toBuffer()]);
+      remainingAccounts.push({
+        pubkey: vr.publicKey,
+        isWritable: true,
+        isSigner: false,
+      });
+      remainingAccounts.push({
+        pubkey: stakeVault,
+        isWritable: true,
+        isSigner: false,
+      });
+      remainingAccounts.push({
+        pubkey: verifierPda,
+        isWritable: true,
+        isSigner: false,
+      });
+    }
+
+    await program.methods.finalizeNews()
+    .accounts({
+      admin: admin.publicKey,
+      news: news,
+      treasury: treasury
+    })
+    .remainingAccounts(remainingAccounts)
+    .signers([admin])
+    .rpc();
+
+    const newsAccount = await program.account.news.fetch(news);
+
+    console.log(newsAccount)
+
+  });
 });
