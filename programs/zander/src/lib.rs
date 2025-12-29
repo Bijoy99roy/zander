@@ -17,9 +17,14 @@ pub mod zander {
         Ok(())
     }
 
-    pub fn post_news(ctx: Context<PostNews>, ipfs_url: String, headline: String) -> Result<()> {
+    pub fn post_news(
+        ctx: Context<PostNews>,
+        ipfs_url: String,
+        headline: String,
+        deadline: i64,
+    ) -> Result<()> {
         let bump = ctx.bumps.news;
-        ctx.accounts.post(ipfs_url, headline, bump)?;
+        ctx.accounts.post(ipfs_url, headline, deadline, bump)?;
         Ok(())
     }
 

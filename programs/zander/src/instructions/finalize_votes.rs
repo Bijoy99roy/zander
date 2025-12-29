@@ -6,6 +6,7 @@ use crate::{
     MIN_VOTES_REQUIRED, SUPERMAJORITY,
 };
 use anchor_lang::prelude::*;
+use anchor_lang::system_program::{transfer, Transfer};
 use anchor_lang::AccountDeserialize;
 
 #[derive(Accounts)]
@@ -26,13 +27,21 @@ pub struct FinalizeNews<'info> {
 }
 
 impl<'info> FinalizeNews<'info> {
-    pub fn finalize<'c>(&mut self, remaining_accounts: &'c [AccountInfo<'info>]) -> Result<()> {
+    pub fn finalize(&mut self, remaining_accounts: &[AccountInfo<'info>]) -> Result<()> {
         let news = &mut self.news;
+
+        // require!(
+        //     Clock::get()?.unix_timestamp > news.deadline,
+        //     ErrorCode::VotingPhaseStillActive
+        // );
         require!(!news.finalized, ErrorCode::AlreadyFinalized);
+
         let mut total_voting_power = 0;
         let mut true_power = 0;
         let mut false_power = 0;
-        let mut total_votes: u64 = 0;
+
+        let mut true_votes = 0;
+        let mut false_votes = 0;
 
         let remaing_account_iter = remaining_accounts;
 
@@ -43,24 +52,29 @@ impl<'info> FinalizeNews<'info> {
             match votes.vote {
                 Votes::True => {
                     true_power += votes.voting_power;
-                    total_votes += 1;
+                    true_votes += 1;
                 }
                 Votes::False => {
                     false_power += votes.voting_power;
-                    total_votes += 1;
+                    false_votes += 1;
                 }
             }
         }
 
         let total_vp = true_power + false_power;
+        let total_votes = true_votes + false_votes;
 
         // Check total vote count satisfies minimum required vote
         require!(total_votes >= MIN_VOTES_REQUIRED, ErrorCode::NotEnoughVotes);
 
         let perct = true_power.max(false_power) * 100 / total_vp;
+
+        let mut total_winner = 0;
         let final_result = if true_power > false_power {
+            total_winner = true_votes;
             Votes::True
         } else {
+            total_winner = false_votes;
             Votes::False
         };
 
@@ -68,6 +82,8 @@ impl<'info> FinalizeNews<'info> {
             news.finalized = true;
             news.phase = NewsPhase::Finalized;
             news.winner = Some(final_result.clone());
+            news.vote_false = false_votes;
+            news.vote_true = true_votes;
         } else {
             match news.phase {
                 NewsPhase::Verification => {
@@ -82,12 +98,13 @@ impl<'info> FinalizeNews<'info> {
             }
         }
 
-        let gap = (true_power.max(false_power) - false_power.min(true_power)) / total_vp;
+        let gap = ((true_power.max(false_power) - false_power.min(true_power)) / total_vp) * 100;
         slash_and_reward(
             &self.treasury,
             remaining_accounts,
             final_result,
             gap,
+            total_winner,
             &self.system_program,
         )?;
 
@@ -100,6 +117,7 @@ fn slash_and_reward<'info>(
     remaining_accounts: &[AccountInfo<'info>],
     winner: Votes,
     gap: u64,
+    total_winner: u64,
     system_program: &Program<'info, System>,
 ) -> Result<()> {
     let mut total_winner_power: u64 = 0;
@@ -136,8 +154,10 @@ fn slash_and_reward<'info>(
         //     .find(|v| v.key() == votes.verifier)
         //     .ok_or(ErrorCode::MissingVerifier)?;
 
-        let mut data: &[u8] = &acc[2].try_borrow_data()?;
-        let mut verifier: Verifier = Verifier::try_deserialize(&mut data)?;
+        let mut verifier = {
+            let mut data: &[u8] = &acc[2].try_borrow_data()?;
+            Verifier::try_deserialize(&mut data)?
+        };
 
         // slash_rate = BASE × (1 + 4*gap)
         // This formula makes sure the slashing rate is proportional to the gap
@@ -159,10 +179,10 @@ fn slash_and_reward<'info>(
             .checked_add(slash_amount)
             .ok_or(ErrorCode::MathOverflow)?;
 
-        let (expected_vault, _) = Pubkey::find_program_address(
-            &[b"stake_vault", verifier.verifier.key().as_ref()],
-            &system_program.key(),
-        );
+        // let (expected_vault, _) = Pubkey::find_program_address(
+        //     &[b"stake_vault", verifier.verifier.key().as_ref()],
+        //     &system_program.key(),
+        // );
 
         // let vault = remaining_accounts
         //     .find(|a| a.key == &expected_vault)
@@ -170,8 +190,29 @@ fn slash_and_reward<'info>(
 
         let vault = &acc[1];
 
-        **vault.try_borrow_mut_lamports()? -= slash_amount;
+        // **vault.try_borrow_mut_lamports()? -= slash_amount;
 
+        let verifier_key = verifier.verifier.key();
+        let seeds = &[
+            b"stake_vault",
+            verifier_key.as_ref(),
+            &[verifier.vault_bump],
+        ];
+
+        let signer = &[&seeds[..]];
+
+        let cpi_ctx = CpiContext::new_with_signer(
+            system_program.to_account_info(),
+            Transfer {
+                from: vault.to_account_info(),
+                to: treasury.to_account_info(),
+            },
+            signer,
+        );
+
+        transfer(cpi_ctx, slash_amount)?;
+        let mut data: &mut [u8] = &mut acc[2].try_borrow_mut_data()?;
+        verifier.try_serialize(&mut data)?;
         // TODO: reputation logic
     }
 
@@ -180,12 +221,14 @@ fn slash_and_reward<'info>(
         .ok_or(ErrorCode::MathOverflow)?
         / BASIS_POINT;
 
-    **treasury.to_account_info().try_borrow_mut_lamports()? += treasury_cut;
+    // **treasury.to_account_info().try_borrow_mut_lamports()? += treasury_cut;
 
     let reward_pool = total_slashed
         .checked_sub(treasury_cut)
         .ok_or(ErrorCode::MathOverflow)?;
 
+    let mut winner_left = total_winner;
+    let mut remaining_rewards = reward_pool;
     // reward correct voters stakes and reputation
     for acc in remaining_accounts.chunks_exact(3) {
         if acc[0].owner != &crate::ID {
@@ -203,23 +246,33 @@ fn slash_and_reward<'info>(
         //     .find(|v| v.key() == votes.verifier)
         //     .ok_or(ErrorCode::MissingVerifier)?;
 
-        let mut data: &[u8] = &acc[2].try_borrow_data()?;
-        let mut verifier: Verifier = Verifier::try_deserialize(&mut data)?;
+        let mut verifier = {
+            let mut data: &[u8] = &acc[2].try_borrow_data()?;
+            Verifier::try_deserialize(&mut data)?
+        };
 
-        let reward = reward_pool
-            .checked_mul(votes.voting_power)
-            .ok_or(ErrorCode::MathOverflow)?
-            / total_winner_power;
-
+        let reward = if winner_left == 1 {
+            remaining_rewards
+        } else {
+            let r = reward_pool
+                .checked_mul(votes.voting_power)
+                .ok_or(ErrorCode::MathOverflow)?
+                / total_winner_power;
+            remaining_rewards = remaining_rewards
+                .checked_sub(r)
+                .ok_or(ErrorCode::MathOverflow)?;
+            r
+        };
+        winner_left -= 1;
         verifier.stake_lamports = verifier
             .stake_lamports
             .checked_add(reward as u64)
             .ok_or(ErrorCode::MathOverflow)?;
 
-        let (expected_vault, _) = Pubkey::find_program_address(
-            &[b"stake_vault", verifier.verifier.key().as_ref()],
-            &system_program.key(),
-        );
+        // let (expected_vault, _) = Pubkey::find_program_address(
+        //     &[b"stake_vault", verifier.verifier.key().as_ref()],
+        //     &system_program.key(),
+        // );
 
         // let vault = remaining_accounts
         //     .find(|a| a.key == &expected_vault)
@@ -227,9 +280,22 @@ fn slash_and_reward<'info>(
 
         let vault = &acc[1];
 
+        **treasury.to_account_info().try_borrow_mut_lamports()? -= reward;
         **vault.try_borrow_mut_lamports()? += reward;
 
         // TODO: reputation logic
+        verifier.reputation = increase_reputaton(verifier.reputation, gap);
+
+        let mut data: &mut [u8] = &mut acc[2].try_borrow_mut_data()?;
+        verifier.try_serialize(&mut data)?;
     }
     Ok(())
+}
+
+fn increase_reputaton(reputation: u8, gap: u64) -> u8 {
+    let headroom = 100u8.saturating_sub(reputation);
+
+    let rep_gain = (headroom * (1 + gap as u8)) / 100;
+
+    rep_gain.max(1).min(100)
 }

@@ -32,6 +32,7 @@ pub enum NewsPhase {
 pub struct News {
     pub publisher: Pubkey,
     pub created_at: i64,
+    pub deadline: i64,
     pub vote_true: u64,
     pub vote_false: u64,
     pub finalized: bool,

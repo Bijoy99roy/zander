@@ -6,8 +6,8 @@ pub enum ErrorCode {
     InsufficientStake,
     #[msg("Voting closed")]
     VotingClosed,
-    #[msg("Phase still active")]
-    PhaseStillActive,
+    #[msg("Voting Phase still active")]
+    VotingPhaseStillActive,
     #[msg("Already finalized")]
     AlreadyFinalized,
     #[msg("Not a verifier")]
