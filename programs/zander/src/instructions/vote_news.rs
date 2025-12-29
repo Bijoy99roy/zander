@@ -45,10 +45,16 @@ impl<'info> CastVote<'info> {
             ErrorCode::NotVerifier
         );
 
+        require!(
+            Clock::get()?.unix_timestamp < self.news.deadline,
+            ErrorCode::VotingClosed
+        );
+
         let vote_record = &mut self.vote_record;
 
         vote_record.verifier = self.voter.key();
         vote_record.vote = vote;
+        vote_record.news = self.news.key();
         let voting_power =
             calc_voting_power(self.verifier.stake_lamports, self.verifier.reputation);
         vote_record.voting_power = voting_power;

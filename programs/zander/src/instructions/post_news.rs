@@ -21,10 +21,17 @@ pub struct PostNews<'info> {
 }
 
 impl<'info> PostNews<'info> {
-    pub fn post(&mut self, ipfs_url: String, headline: String, bump: u8) -> Result<()> {
+    pub fn post(
+        &mut self,
+        ipfs_url: String,
+        headline: String,
+        deadline: i64,
+        bump: u8,
+    ) -> Result<()> {
         let news = &mut self.news;
         let clock = Clock::get()?;
         news.created_at = clock.unix_timestamp;
+        news.deadline = deadline;
         news.publisher = self.publisher.key();
         news.vote_true = 0;
         news.vote_false = 0;
