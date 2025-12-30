@@ -63,7 +63,7 @@ impl<'info> CastVote<'info> {
     }
 }
 
-fn calc_voting_power(stake: u64, rep: u8) -> u64 {
+fn calc_voting_power(stake: u64, rep: u64) -> u64 {
     /*
        VPT_TOKENS = SOL_STAKED * TOKENS_PER_SOL
        SCALED_POWER = SQRT(VPT_TOKENS)
@@ -71,5 +71,5 @@ fn calc_voting_power(stake: u64, rep: u8) -> u64 {
     */
     let tokens = stake / LAMPORTS_PER_SOL * TOKENS_PER_SOL;
     let sqrt_tokens = tokens.integer_sqrt();
-    sqrt_tokens * (100 + rep as u64) / 100
+    (sqrt_tokens * (100 + rep as u64)) / 100
 }
