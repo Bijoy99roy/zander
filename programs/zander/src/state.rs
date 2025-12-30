@@ -12,6 +12,8 @@ pub const MIN_VOTES_REQUIRED: u64 = 2;
 
 pub const BASE_SLASH_RATE_BP: u64 = 200;
 
+pub const BASE_SLASH_RATE_RP: u64 = 500;
+
 pub const GAP_MULTIPLIER: u64 = 4;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace)]
@@ -58,7 +60,7 @@ pub struct VoteRecord {
 #[derive(InitSpace)]
 pub struct Verifier {
     pub verifier: Pubkey,
-    pub reputation: u8,
+    pub reputation: u64,
     pub stake_lamports: u64,
     pub bump: u8,
     pub vault_bump: u8,

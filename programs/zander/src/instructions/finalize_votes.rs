@@ -2,8 +2,8 @@ use std::slice::Iter;
 
 use crate::{error::ErrorCode, News, Treasury, VoteRecord, Votes};
 use crate::{
-    NewsPhase, Verifier, BASE_SLASH_RATE_BP, BASIS_POINT, FEES_NUMERATOR, GAP_MULTIPLIER,
-    MIN_VOTES_REQUIRED, SUPERMAJORITY,
+    NewsPhase, Verifier, BASE_SLASH_RATE_BP, BASE_SLASH_RATE_RP, BASIS_POINT, FEES_NUMERATOR,
+    GAP_MULTIPLIER, MIN_VOTES_REQUIRED, SUPERMAJORITY,
 };
 use anchor_lang::prelude::*;
 use anchor_lang::system_program::{transfer, Transfer};
@@ -30,10 +30,10 @@ impl<'info> FinalizeNews<'info> {
     pub fn finalize(&mut self, remaining_accounts: &[AccountInfo<'info>]) -> Result<()> {
         let news = &mut self.news;
 
-        // require!(
-        //     Clock::get()?.unix_timestamp > news.deadline,
-        //     ErrorCode::VotingPhaseStillActive
-        // );
+        require!(
+            Clock::get()?.unix_timestamp > news.deadline,
+            ErrorCode::VotingPhaseStillActive
+        );
         require!(!news.finalized, ErrorCode::AlreadyFinalized);
 
         let mut total_voting_power = 0;
@@ -87,7 +87,12 @@ impl<'info> FinalizeNews<'info> {
         } else {
             match news.phase {
                 NewsPhase::Verification => {
+                    let extended_deadline: i64 = 5; // 5 second
                     news.phase = NewsPhase::Dispute;
+                    news.deadline = news
+                        .deadline
+                        .checked_add(extended_deadline)
+                        .ok_or(ErrorCode::MathOverflow)?;
                 }
                 NewsPhase::Dispute => {
                     news.finalized = true;
@@ -98,7 +103,7 @@ impl<'info> FinalizeNews<'info> {
             }
         }
 
-        let gap = ((true_power.max(false_power) - false_power.min(true_power)) / total_vp) * 100;
+        let gap = ((true_power.max(false_power) - false_power.min(true_power)) * 100) / total_vp;
         slash_and_reward(
             &self.treasury,
             remaining_accounts,
@@ -211,9 +216,12 @@ fn slash_and_reward<'info>(
         );
 
         transfer(cpi_ctx, slash_amount)?;
+
+        let reputation = decrease_reputation(verifier.reputation, gap);
+        verifier.reputation = verifier.reputation.saturating_sub(reputation);
+
         let mut data: &mut [u8] = &mut acc[2].try_borrow_mut_data()?;
         verifier.try_serialize(&mut data)?;
-        // TODO: reputation logic
     }
 
     let treasury_cut = total_slashed
@@ -223,9 +231,7 @@ fn slash_and_reward<'info>(
 
     // **treasury.to_account_info().try_borrow_mut_lamports()? += treasury_cut;
 
-    let reward_pool = total_slashed
-        .checked_sub(treasury_cut)
-        .ok_or(ErrorCode::MathOverflow)?;
+    let reward_pool = total_slashed.saturating_sub(treasury_cut);
 
     let mut winner_left = total_winner;
     let mut remaining_rewards = reward_pool;
@@ -283,8 +289,8 @@ fn slash_and_reward<'info>(
         **treasury.to_account_info().try_borrow_mut_lamports()? -= reward;
         **vault.try_borrow_mut_lamports()? += reward;
 
-        // TODO: reputation logic
-        verifier.reputation = increase_reputaton(verifier.reputation, gap);
+        let reputation = increase_reputaton(verifier.reputation, gap);
+        verifier.reputation = verifier.reputation.saturating_add(reputation).min(100);
 
         let mut data: &mut [u8] = &mut acc[2].try_borrow_mut_data()?;
         verifier.try_serialize(&mut data)?;
@@ -292,10 +298,21 @@ fn slash_and_reward<'info>(
     Ok(())
 }
 
-fn increase_reputaton(reputation: u8, gap: u64) -> u8 {
-    let headroom = 100u8.saturating_sub(reputation);
+fn increase_reputaton(reputation: u64, gap: u64) -> u64 {
+    // Headroom makes sure reputation increases more when initial reputation is low and reputation increases less when initial reputation is high
+    let headroom = 100u64.saturating_sub(reputation);
 
-    let rep_gain = (headroom * (1 + gap as u8)) / 100;
+    let rep_gain = (headroom * (1 + gap)) / 100;
 
-    rep_gain.max(1).min(100)
+    rep_gain.max(1)
+}
+
+fn decrease_reputation(reputation: u64, gap: u64) -> u64 {
+    let base_loss = reputation * BASE_SLASH_RATE_RP;
+
+    let gap_influence = (100 + GAP_MULTIPLIER * gap) / 100;
+
+    let rep_loss = (base_loss * gap_influence) / BASIS_POINT;
+
+    rep_loss.max(1)
 }
